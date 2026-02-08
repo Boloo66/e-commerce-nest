@@ -1,0 +1,183 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+model User {
+    id        String   @id @default(uuid())
+    email     String   @unique
+    password  String
+    firstName String
+    lastName  String
+    role      Role     @default(USER)
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    cartItems CartItem[]
+
+    orders Order[]
+
+    @@index([email])
+}
+
+model Product {
+    id          String   @id @default(uuid())
+    name        String
+    description String?
+    price       Decimal  @db.Decimal(10, 2)
+    stock       Int
+    imageUrl    String?
+    category    String?
+    sku         String   @unique
+    isActive    Boolean  @default(true)
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    cartItems CartItem[]
+
+    orderItems OrderItem[]
+
+    CouponRules CouponRule[]
+
+    @@index([name])
+    @@index([isActive])
+    @@index([sku])
+}
+
+model CartItem {
+    id        String   @id @default(uuid())
+    quantity  Int
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    userId String
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    productId String
+    product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+    @@unique([userId, productId])
+    @@index([userId])
+}
+
+model Order {
+    id            String   @id @default(uuid())
+    orderNumber   String   @unique
+    subtotal      Decimal  @db.Decimal(10, 2)
+    discount      Decimal  @db.Decimal(10, 2)
+    total         Decimal  @db.Decimal(10, 2)
+    status        String   @default("PENDING")
+    paymentMethod String?
+    paymentStatus String   @default("PENDING")
+    createdAt     DateTime @default(now())
+    updatedAt     DateTime @updatedAt
+
+    userId String
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    couponId String?
+    coupon   Coupon? @relation(fields: [couponId], references: [id], onDelete: SetNull)
+
+    items OrderItem[]
+
+    @@index([userId])
+    @@index([orderNumber])
+    @@index([status])
+}
+
+model OrderItem {
+    id        String   @id @default(uuid())
+    quantity  Int
+    price     Decimal  @db.Decimal(10, 2)
+    discount  Decimal  @db.Decimal(10, 2)
+    total     Decimal  @db.Decimal(10, 2)
+    createdAt DateTime @default(now())
+
+    orderId String
+    order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+    productId String
+    product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+    @@index([orderId])
+}
+
+model Coupon {
+    id          String       @id @default(uuid())
+    code        String       @unique
+    type        DiscountType
+    value       Decimal      @db.Decimal(10, 2)
+    minPurchase Decimal      @db.Decimal(10, 2)
+    maxDiscount Decimal      @db.Decimal(10, 2)
+    usageLimit  Int?
+    usageCount  Int          @default(0)
+    isActive    Boolean      @default(true)
+    validFrom   DateTime
+    validUntil  DateTime
+    createdAt   DateTime     @default(now())
+    updatedAt   DateTime     @updatedAt
+
+    rules  CouponRule[]
+    orders Order[]
+
+    @@index([code])
+    @@index([isActive])
+    @@index([validFrom, validUntil])
+}
+
+model CouponRule {
+    id       String         @id @default(uuid())
+    couponId String
+    coupon   Coupon         @relation(fields: [couponId], references: [id], onDelete: Cascade)
+    type     CouponRuleType
+
+    // For PRODUCT rule
+    productId String?
+    product   Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+    // For CATEGORY rule
+    categoryId         String?
+    discountPercentage Decimal? @db.Decimal(5, 2)
+    discountFixed      Decimal? @db.Decimal(10, 2)
+
+    // For Buy X Get Y rule
+    buyQuantity Int?
+    getQuantity Int?
+
+    priority  Int      @default(0)
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([couponId])
+    @@index([type])
+}
+
+enum Role {
+    USER
+    ADMIN
+}
+
+enum OrdersStatus {
+    PENDING
+    PROCESSING
+    COMPLETED
+    CANCELLED
+    FAILED
+}
+
+enum DiscountType {
+    PERCENTAGE
+    FIXED
+    BUY_X_GET_Y
+    FREE_SHIPPING
+}
+
+enum CouponRuleType {
+    PRODUCT
+    CATEGORY
+    BUY_X_GET_Y
+}
